@@ -1,0 +1,281 @@
+//@version=5
+indicator("Multi-Timeframe Supertrend + MACD System", overlay=true, format=format.price, precision=2)
+
+// ============================================================================
+// INPUT SETTINGS
+// ============================================================================
+
+// M30 Supertrend Settings
+m30_atr_period = input(title="M30 ATR Period", defval=10, minval=1, group="M30 Supertrend")
+m30_multiplier = input(title="M30 ATR Multiplier", defval=3.0, step=0.1, group="M30 Supertrend")
+
+// M5 Supertrend Settings
+m5_atr_period = input(title="M5 ATR Period", defval=10, minval=1, group="M5 Supertrend")
+m5_multiplier = input(title="M5 ATR Multiplier", defval=2.0, step=0.1, group="M5 Supertrend")
+
+// MACD Settings
+macd_fast = input(title="MACD Fast Length", defval=12, minval=1, group="MACD")
+macd_slow = input(title="MACD Slow Length", defval=26, minval=1, group="MACD")
+macd_signal = input(title="MACD Signal Length", defval=9, minval=1, group="MACD")
+
+// Sideway Detection Settings
+sideway_sensitivity = input(title="Sideway Sensitivity (1-10)", defval=5, minval=1, maxval=10, group="Sideway Detection")
+sideway_lookback = input(title="Sideway Lookback Bars", defval=20, minval=5, group="Sideway Detection")
+
+// Display Settings
+show_m30_trend = input(title="Show M30 Trend", defval=true, group="Display")
+show_m5_trend = input(title="Show M5 Trend", defval=true, group="Display")
+show_macd_div = input(title="Show MACD Divergence", defval=true, group="Display")
+show_status_table = input(title="Show Status Table", defval=true, group="Display")
+show_signals = input(title="Show BUY/SELL Signals", defval=true, group="Display")
+
+// Alert Settings
+alert_buy = input(title="Alert on BUY", defval=true, group="Alerts")
+alert_sell = input(title="Alert on SELL", defval=true, group="Alerts")
+alert_sideway = input(title="Alert on SIDEWAY", defval=false, group="Alerts")
+
+// ============================================================================
+// SUPERTREND CALCULATION FUNCTION
+// ============================================================================
+
+f_supertrend(atr_period, multiplier) =>
+    src = hl2
+    atr_val = ta.atr(atr_period)
+    up = src - (multiplier * atr_val)
+    up := close[1] > nz(up[1], up) ? math.max(up, nz(up[1], up)) : up
+    dn = src + (multiplier * atr_val)
+    dn := close[1] < nz(dn[1], dn) ? math.min(dn, nz(dn[1], dn)) : dn
+    
+    trend = 1
+    trend := nz(trend[1], trend)
+    trend := trend == -1 and close > nz(dn[1], dn) ? 1 : trend == 1 and close < nz(up[1], up) ? -1 : trend
+    
+    [trend, up, dn]
+
+// ============================================================================
+// M30 SUPERTREND (Multi-timeframe)
+// ============================================================================
+
+[m30_trend, m30_up, m30_dn] = request.security(syminfo.tickerid, "30", f_supertrend(m30_atr_period, m30_multiplier))
+
+m30_is_bullish = m30_trend == 1
+m30_is_bearish = m30_trend == -1
+m30_trend_changed = m30_trend != m30_trend[1]
+
+// ============================================================================
+// M5 SUPERTREND (Multi-timeframe)
+// ============================================================================
+
+[m5_trend, m5_up, m5_dn] = request.security(syminfo.tickerid, "5", f_supertrend(m5_atr_period, m5_multiplier))
+
+m5_is_bullish = m5_trend == 1
+m5_is_bearish = m5_trend == -1
+m5_trend_changed = m5_trend != m5_trend[1]
+m5_bullish_signal = m5_trend == 1 and m5_trend[1] == -1
+m5_bearish_signal = m5_trend == -1 and m5_trend[1] == 1
+
+// ============================================================================
+// MACD CALCULATION (Multi-timeframe)
+// ============================================================================
+
+[macd_line, macd_signal_line, macd_histogram] = request.security(syminfo.tickerid, "5", 
+    ta.macd(close, macd_fast, macd_slow, macd_signal))
+
+macd_signal_up = macd_line > macd_signal_line and macd_line[1] <= macd_signal_line[1]
+macd_signal_down = macd_line < macd_signal_line and macd_line[1] >= macd_signal_line[1]
+macd_hist_positive = macd_histogram > 0
+macd_hist_increasing = macd_histogram > macd_histogram[1]
+macd_hist_negative = macd_histogram < 0
+macd_hist_decreasing = macd_histogram < macd_histogram[1]
+
+// ============================================================================
+// PRICE ACTION CONFIRMATION (Multi-timeframe)
+// ============================================================================
+
+price_above_m5_up = close > request.security(syminfo.tickerid, "5", m5_up)
+price_below_m5_dn = close < request.security(syminfo.tickerid, "5", m5_dn)
+
+// ============================================================================
+// SIDEWAY MARKET DETECTION
+// ============================================================================
+
+f_detect_sideway() =>
+    // Condition 1: Low volatility
+    atr_avg = ta.sma(ta.atr(14), 20)
+    low_volatility = ta.atr(14) < (atr_avg * 0.7)
+    
+    // Condition 2: Frequent Supertrend direction flips
+    m5_flips = 0
+    for i = 1 to math.min(sideway_lookback, 50)
+        if m5_trend[i] != m5_trend[i+1]
+            m5_flips += 1
+    
+    flip_threshold = sideway_lookback / 5
+    frequent_flips = m5_flips > flip_threshold
+    
+    // Condition 3: Narrow price range
+    highest = ta.highest(high, sideway_lookback)
+    lowest = ta.lowest(low, sideway_lookback)
+    range_pct = ((highest - lowest) / lowest) * 100
+    narrow_range = range_pct < 1.0 + (0.5 * (11 - sideway_sensitivity))
+    
+    // Condition 4: Flat EMA slope
+    ema_fast = ta.ema(close, 20)
+    ema_slow = ta.ema(close, 50)
+    ema_slope_pct = math.abs((ema_fast - ema_slow) / ema_slow) * 100
+    flat_ema = ema_slope_pct < 0.3
+    
+    // Combine conditions
+    conditions_met = 0
+    if low_volatility
+        conditions_met += 1
+    if frequent_flips
+        conditions_met += 1
+    if narrow_range
+        conditions_met += 1
+    if flat_ema
+        conditions_met += 1
+    
+    sideway_threshold = 11 - sideway_sensitivity
+    is_sideway = conditions_met >= math.ceil(sideway_threshold / 2.5)
+    is_sideway
+
+is_sideway = f_detect_sideway()
+
+// ============================================================================
+// BUY SIGNAL CONDITIONS
+// ============================================================================
+
+buy_m30_bullish = m30_is_bullish
+buy_m5_signal = m5_bullish_signal
+buy_price_above = price_above_m5_up
+buy_macd_crossover = macd_signal_up
+buy_macd_hist_positive = macd_hist_positive and macd_hist_increasing
+buy_not_sideway = not is_sideway
+
+buy_signal = buy_m30_bullish and buy_m5_signal and buy_price_above and buy_macd_crossover and buy_macd_hist_positive and buy_not_sideway
+
+// Avoid repeated signals
+buy_last_signal = ta.valuewhen(buy_signal, bar_index, 0)
+buy_last_close = ta.valuewhen(buy_signal, close, 0)
+no_buy_repeat = bar_index - buy_last_signal[1] > 10
+
+final_buy_signal = buy_signal and no_buy_repeat
+
+// ============================================================================
+// SELL SIGNAL CONDITIONS
+// ============================================================================
+
+sell_m30_bearish = m30_is_bearish
+sell_m5_signal = m5_bearish_signal
+sell_price_below = price_below_m5_dn
+sell_macd_crossover = macd_signal_down
+sell_macd_hist_negative = macd_hist_negative and macd_hist_decreasing
+sell_not_sideway = not is_sideway
+
+sell_signal = sell_m30_bearish and sell_m5_signal and sell_price_below and sell_macd_crossover and sell_macd_hist_negative and sell_not_sideway
+
+// Avoid repeated signals
+sell_last_signal = ta.valuewhen(sell_signal, bar_index, 0)
+sell_last_close = ta.valuewhen(sell_signal, close, 0)
+no_sell_repeat = bar_index - sell_last_signal[1] > 10
+
+final_sell_signal = sell_signal and no_sell_repeat
+
+// ============================================================================
+// PLOTTING
+// ============================================================================
+
+// M30 Supertrend Lines
+plot(show_m30_trend and m30_is_bullish ? m30_up : na, title="M30 Up Trend", color=color.new(color.green, 0), linewidth=3, style=plot.style_linebr)
+plot(show_m30_trend and m30_is_bearish ? m30_dn : na, title="M30 Down Trend", color=color.new(color.red, 0), linewidth=3, style=plot.style_linebr)
+
+// M5 Supertrend Lines
+plot(show_m5_trend and m5_is_bullish ? m5_up : na, title="M5 Up Trend", color=color.new(color.lime, 50), linewidth=2, style=plot.style_linebr)
+plot(show_m5_trend and m5_is_bearish ? m5_dn : na, title="M5 Down Trend", color=color.new(color.orange, 50), linewidth=2, style=plot.style_linebr)
+
+// Sideway Background
+bgcolor(is_sideway ? color.new(color.gray, 80) : na, title="Sideway Market")
+
+// BUY Signal Visualization
+plotshape(show_signals and final_buy_signal ? low - (high - low) * 0.5 : na, 
+    title="BUY Signal", 
+    style=shape.labelup, 
+    location=location.belowbar, 
+    color=color.new(color.green, 0), 
+    text="BUY", 
+    textcolor=color.white,
+    size=size.normal)
+
+plotshape(show_signals and final_buy_signal ? low : na,
+    title="BUY Arrow",
+    style=shape.triangleup,
+    location=location.belowbar,
+    color=color.new(color.green, 0),
+    size=size.small)
+
+// SELL Signal Visualization
+plotshape(show_signals and final_sell_signal ? high + (high - low) * 0.5 : na, 
+    title="SELL Signal", 
+    style=shape.labeldown, 
+    location=location.abovebar, 
+    color=color.new(color.red, 0), 
+    text="SELL", 
+    textcolor=color.white,
+    size=size.normal)
+
+plotshape(show_signals and final_sell_signal ? high : na,
+    title="SELL Arrow",
+    style=shape.triangledown,
+    location=location.abovebar,
+    color=color.new(color.red, 0),
+    size=size.small)
+
+// ============================================================================
+// STATUS TABLE
+// ============================================================================
+
+if show_status_table
+    m30_status = m30_is_bullish ? "BULLISH" : "BEARISH"
+    m30_color = m30_is_bullish ? color.green : color.red
+    
+    m5_status = m5_is_bullish ? "BULLISH" : "BEARISH"
+    m5_color = m5_is_bullish ? color.green : color.red
+    
+    macd_status = macd_hist_positive ? "POSITIVE" : "NEGATIVE"
+    macd_color = macd_hist_positive ? color.green : color.red
+    
+    sideway_status = is_sideway ? "YES" : "NO"
+    sideway_color = is_sideway ? color.gray : color.blue
+    
+    var table status_table = table.new(position.top_right, 2, 5, border_color=color.gray, frame_color=color.gray, frame_width=2)
+    
+    table.cell(status_table, 0, 0, "M30 Trend:", text_color=color.white, bgcolor=color.new(color.black, 20))
+    table.cell(status_table, 1, 0, m30_status, text_color=color.white, bgcolor=color.new(m30_color, 40))
+    
+    table.cell(status_table, 0, 1, "M5 Trend:", text_color=color.white, bgcolor=color.new(color.black, 20))
+    table.cell(status_table, 1, 1, m5_status, text_color=color.white, bgcolor=color.new(m5_color, 40))
+    
+    table.cell(status_table, 0, 2, "MACD:", text_color=color.white, bgcolor=color.new(color.black, 20))
+    table.cell(status_table, 1, 2, macd_status, text_color=color.white, bgcolor=color.new(macd_color, 40))
+    
+    table.cell(status_table, 0, 3, "Sideway:", text_color=color.white, bgcolor=color.new(color.black, 20))
+    table.cell(status_table, 1, 3, sideway_status, text_color=color.white, bgcolor=color.new(sideway_color, 40))
+    
+    table.cell(status_table, 0, 4, "Signal:", text_color=color.white, bgcolor=color.new(color.black, 20))
+    signal_text = final_buy_signal ? "BUY" : final_sell_signal ? "SELL" : "WAIT"
+    signal_color = final_buy_signal ? color.green : final_sell_signal ? color.red : color.orange
+    table.cell(status_table, 1, 4, signal_text, text_color=color.white, bgcolor=color.new(signal_color, 40))
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+
+if alert_buy and final_buy_signal
+    alert("🟢 BUY Signal - M30: " + (m30_is_bullish ? "BULLISH" : "BEARISH") + " | M5: BULLISH | MACD: Positive", alert.freq_once_per_bar_close)
+
+if alert_sell and final_sell_signal
+    alert("🔴 SELL Signal - M30: " + (m30_is_bearish ? "BEARISH" : "BULLISH") + " | M5: BEARISH | MACD: Negative", alert.freq_once_per_bar_close)
+
+if alert_sideway and is_sideway and not is_sideway[1]
+    alert("⚠️ SIDEWAY Market Detected - Reduce Risk!", alert.freq_once_per_bar_close)
