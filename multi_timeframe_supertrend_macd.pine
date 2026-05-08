@@ -197,38 +197,14 @@ plot(show_m5_trend and m5_is_bearish ? m5_dn : na, title="M5 Down Trend", color=
 bgcolor(is_sideway ? color.new(color.gray, 80) : na, title="Sideway Market")
 
 // BUY Signal Visualization
-plotshape(show_signals and final_buy_signal ? low - (high - low) * 0.5 : na, 
-    title="BUY Signal", 
-    style=shape.labelup, 
-    location=location.belowbar, 
-    color=color.new(color.green, 0), 
-    text="BUY", 
-    textcolor=color.white,
-    size=size.normal)
-
-plotshape(show_signals and final_buy_signal ? low : na,
-    title="BUY Arrow",
-    style=shape.triangleup,
-    location=location.belowbar,
-    color=color.new(color.green, 0),
-    size=size.small)
+if show_signals and final_buy_signal
+    plotshape(low - (high - low) * 0.5, title="BUY Signal", style=shape.labelup, location=location.belowbar, color=color.new(color.green, 0), text="BUY", textcolor=color.white, size=size.normal)
+    plotshape(low, title="BUY Arrow", style=shape.triangleup, location=location.belowbar, color=color.new(color.green, 0), size=size.small)
 
 // SELL Signal Visualization
-plotshape(show_signals and final_sell_signal ? high + (high - low) * 0.5 : na, 
-    title="SELL Signal", 
-    style=shape.labeldown, 
-    location=location.abovebar, 
-    color=color.new(color.red, 0), 
-    text="SELL", 
-    textcolor=color.white,
-    size=size.normal)
-
-plotshape(show_signals and final_sell_signal ? high : na,
-    title="SELL Arrow",
-    style=shape.triangledown,
-    location=location.abovebar,
-    color=color.new(color.red, 0),
-    size=size.small)
+if show_signals and final_sell_signal
+    plotshape(high + (high - low) * 0.5, title="SELL Signal", style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0), text="SELL", textcolor=color.white, size=size.normal)
+    plotshape(high, title="SELL Arrow", style=shape.triangledown, location=location.abovebar, color=color.new(color.red, 0), size=size.small)
 
 // ============================================================================
 // STATUS TABLE
