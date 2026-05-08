@@ -78,8 +78,7 @@ m5_bearish_signal = m5_trend == -1 and m5_trend[1] == 1
 // MACD CALCULATION (Multi-timeframe)
 // ============================================================================
 
-[macd_line, macd_signal_line, macd_histogram] = request.security(syminfo.tickerid, "5", 
-    ta.macd(close, macd_fast, macd_slow, macd_signal))
+[macd_line, macd_signal_line, macd_histogram] = request.security(syminfo.tickerid, "5", ta.macd(close, macd_fast, macd_slow, macd_signal))
 
 macd_signal_up = macd_line > macd_signal_line and macd_line[1] <= macd_signal_line[1]
 macd_signal_down = macd_line < macd_signal_line and macd_line[1] >= macd_signal_line[1]
