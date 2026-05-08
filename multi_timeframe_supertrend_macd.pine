@@ -6,21 +6,21 @@ indicator("Multi-Timeframe Supertrend + MACD System", overlay=true, format=forma
 // ============================================================================
 
 // M30 Supertrend Settings
-m30_atr_period = input(title="M30 ATR Period", defval=10, minval=1, group="M30 Supertrend")
-m30_multiplier = input(title="M30 ATR Multiplier", defval=3.0, step=0.1, group="M30 Supertrend")
+m30_atr_period = input.int(title="M30 ATR Period", defval=10, minval=1, group="M30 Supertrend")
+m30_multiplier = input.float(title="M30 ATR Multiplier", defval=3.0, step=0.1, group="M30 Supertrend")
 
 // M5 Supertrend Settings
-m5_atr_period = input(title="M5 ATR Period", defval=10, minval=1, group="M5 Supertrend")
-m5_multiplier = input(title="M5 ATR Multiplier", defval=2.0, step=0.1, group="M5 Supertrend")
+m5_atr_period = input.int(title="M5 ATR Period", defval=10, minval=1, group="M5 Supertrend")
+m5_multiplier = input.float(title="M5 ATR Multiplier", defval=2.0, step=0.1, group="M5 Supertrend")
 
 // MACD Settings
-macd_fast = input(title="MACD Fast Length", defval=12, minval=1, group="MACD")
-macd_slow = input(title="MACD Slow Length", defval=26, minval=1, group="MACD")
-macd_signal = input(title="MACD Signal Length", defval=9, minval=1, group="MACD")
+macd_fast = input.int(title="MACD Fast Length", defval=12, minval=1, group="MACD")
+macd_slow = input.int(title="MACD Slow Length", defval=26, minval=1, group="MACD")
+macd_signal = input.int(title="MACD Signal Length", defval=9, minval=1, group="MACD")
 
 // Sideway Detection Settings
-sideway_sensitivity = input(title="Sideway Sensitivity (1-10)", defval=5, minval=1, maxval=10, group="Sideway Detection")
-sideway_lookback = input(title="Sideway Lookback Bars", defval=20, minval=5, group="Sideway Detection")
+sideway_sensitivity = input.int(title="Sideway Sensitivity (1-10)", defval=5, minval=1, maxval=10, group="Sideway Detection")
+sideway_lookback = input.int(title="Sideway Lookback Bars", defval=20, minval=5, group="Sideway Detection")
 
 // Display Settings
 show_m30_trend = input(title="Show M30 Trend", defval=true, group="Display")
