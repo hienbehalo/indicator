@@ -1,8 +1,8 @@
 //@version=5
-indicator("Multi-Timeframe Supertrend + MACD System", overlay=true, format=format.price, precision=2)
+indicator("Multi-Timeframe Supertrend + MACD + SMC", overlay=true, format=format.price, precision=2, max_labels_count=500, max_lines_count=500, max_boxes_count=500)
 
 // ============================================================================
-// INPUT SETTINGS
+// SUPERTREND + MACD INPUTS
 // ============================================================================
 
 // M30 Supertrend Settings
@@ -33,6 +33,102 @@ alert_buy = input(title="Alert on BUY", defval=true, group="Alerts")
 alert_sell = input(title="Alert on SELL", defval=true, group="Alerts")
 
 // ============================================================================
+// SMART MONEY CONCEPTS INPUTS
+// ============================================================================
+
+BULLISH_LEG = 1
+BEARISH_LEG = 0
+BULLISH = +1
+BEARISH = -1
+
+GREEN = #089981
+RED = #F23645
+BLUE = #2157f3
+GRAY = #878b94
+MONO_BULLISH = #b2b5be
+MONO_BEARISH = #5d606b
+
+HISTORICAL = 'Historical'
+PRESENT = 'Present'
+COLORED = 'Colored'
+MONOCHROME = 'Monochrome'
+ALL = 'All'
+BOS = 'BOS'
+CHOCH = 'CHoCH'
+TINY = size.tiny
+SMALL = size.small
+NORMAL = size.normal
+
+SMART_GROUP = 'Smart Money Concepts'
+INTERNAL_GROUP = 'Real Time Internal Structure'
+SWING_GROUP = 'Real Time Swing Structure'
+BLOCKS_GROUP = 'Order Blocks'
+EQUAL_GROUP = 'EQH/EQL'
+GAPS_GROUP = 'Fair Value Gaps'
+LEVELS_GROUP = 'Highs & Lows MTF'
+ZONES_GROUP = 'Premium & Discount Zones'
+
+modeInput = input.string(HISTORICAL, 'SMC Mode', group=SMART_GROUP, options=[HISTORICAL, PRESENT])
+styleInput = input.string(COLORED, 'SMC Style', group=SMART_GROUP, options=[COLORED, MONOCHROME])
+showTrendInput = input(false, 'Color Candles', group=SMART_GROUP)
+
+showInternalsInput = input(true, 'Show Internal Structure', group=INTERNAL_GROUP)
+showInternalBullInput = input.string(ALL, 'Bullish Structure', group=INTERNAL_GROUP, inline='ibull', options=[ALL, BOS, CHOCH])
+internalBullColorInput = input(GREEN, '', group=INTERNAL_GROUP, inline='ibull')
+showInternalBearInput = input.string(ALL, 'Bearish Structure', group=INTERNAL_GROUP, inline='ibear', options=[ALL, BOS, CHOCH])
+internalBearColorInput = input(RED, '', group=INTERNAL_GROUP, inline='ibear')
+internalFilterConfluenceInput = input(false, 'Confluence Filter', group=INTERNAL_GROUP)
+internalStructureSize = input.string(TINY, 'Internal Label Size', group=INTERNAL_GROUP, options=[TINY, SMALL, NORMAL])
+
+showStructureInput = input(true, 'Show Swing Structure', group=SWING_GROUP)
+showSwingBullInput = input.string(ALL, 'Bullish Structure', group=SWING_GROUP, inline='bull', options=[ALL, BOS, CHOCH])
+swingBullColorInput = input(GREEN, '', group=SWING_GROUP, inline='bull')
+showSwingBearInput = input.string(ALL, 'Bearish Structure', group=SWING_GROUP, inline='bear', options=[ALL, BOS, CHOCH])
+swingBearColorInput = input(RED, '', group=SWING_GROUP, inline='bear')
+swingStructureSize = input.string(SMALL, 'Swing Label Size', group=SWING_GROUP, options=[TINY, SMALL, NORMAL])
+showSwingsInput = input(false, 'Show Swings Points', group=SWING_GROUP, inline='swings')
+swingsLengthInput = input.int(50, '', group=SWING_GROUP, minval=10, inline='swings')
+showHighLowSwingsInput = input(true, 'Show Strong/Weak High/Low', group=SWING_GROUP)
+
+showInternalOrderBlocksInput = input(true, 'Internal Order Blocks', group=BLOCKS_GROUP, inline='iob')
+internalOrderBlocksSizeInput = input.int(5, '', group=BLOCKS_GROUP, minval=1, maxval=20, inline='iob')
+showSwingOrderBlocksInput = input(false, 'Swing Order Blocks', group=BLOCKS_GROUP, inline='ob')
+swingOrderBlocksSizeInput = input.int(5, '', group=BLOCKS_GROUP, minval=1, maxval=20, inline='ob')
+orderBlockFilterInput = input.string('Atr', 'Order Block Filter', group=BLOCKS_GROUP, options=['Atr', 'Cumulative Mean Range'])
+orderBlockMitigationInput = input.string('High/Low', 'Order Block Mitigation', group=BLOCKS_GROUP, options=['Close', 'High/Low'])
+internalBullishOrderBlockColor = input.color(color.new(#3179f5, 80), 'Internal Bullish OB', group=BLOCKS_GROUP)
+internalBearishOrderBlockColor = input.color(color.new(#f77c80, 80), 'Internal Bearish OB', group=BLOCKS_GROUP)
+swingBullishOrderBlockColor = input.color(color.new(#1848cc, 80), 'Bullish OB', group=BLOCKS_GROUP)
+swingBearishOrderBlockColor = input.color(color.new(#b22833, 80), 'Bearish OB', group=BLOCKS_GROUP)
+
+showEqualHighsLowsInput = input(true, 'Equal High/Low', group=EQUAL_GROUP)
+equalHighsLowsLengthInput = input.int(3, 'Bars Confirmation', group=EQUAL_GROUP, minval=1)
+equalHighsLowsThresholdInput = input.float(0.1, 'Threshold', group=EQUAL_GROUP, minval=0, maxval=0.5, step=0.1)
+equalHighsLowsSizeInput = input.string(TINY, 'Label Size', group=EQUAL_GROUP, options=[TINY, SMALL, NORMAL])
+
+showFairValueGapsInput = input(false, 'Fair Value Gaps', group=GAPS_GROUP)
+fairValueGapsThresholdInput = input(true, 'Auto Threshold', group=GAPS_GROUP)
+fairValueGapsTimeframeInput = input.timeframe('', 'Timeframe', group=GAPS_GROUP)
+fairValueGapsBullColorInput = input.color(color.new(#00ff68, 70), 'Bullish FVG', group=GAPS_GROUP)
+fairValueGapsBearColorInput = input.color(color.new(#ff0008, 70), 'Bearish FVG', group=GAPS_GROUP)
+fairValueGapsExtendInput = input.int(1, 'Extend FVG', group=GAPS_GROUP, minval=0)
+
+showDailyLevelsInput = input(false, 'Daily', group=LEVELS_GROUP, inline='daily')
+dailyLevelsStyleInput = input.string('⎯⎯⎯', '', group=LEVELS_GROUP, inline='daily', options=['⎯⎯⎯', '----', '····'])
+dailyLevelsColorInput = input(BLUE, '', group=LEVELS_GROUP, inline='daily')
+showWeeklyLevelsInput = input(false, 'Weekly', group=LEVELS_GROUP, inline='weekly')
+weeklyLevelsStyleInput = input.string('⎯⎯⎯', '', group=LEVELS_GROUP, inline='weekly', options=['⎯⎯⎯', '----', '····'])
+weeklyLevelsColorInput = input(BLUE, '', group=LEVELS_GROUP, inline='weekly')
+showMonthlyLevelsInput = input(false, 'Monthly', group=LEVELS_GROUP, inline='monthly')
+monthlyLevelsStyleInput = input.string('⎯⎯⎯', '', group=LEVELS_GROUP, inline='monthly', options=['⎯⎯⎯', '----', '····'])
+monthlyLevelsColorInput = input(BLUE, '', group=LEVELS_GROUP, inline='monthly')
+
+showPremiumDiscountZonesInput = input(false, 'Premium/Discount Zones', group=ZONES_GROUP)
+premiumZoneColorInput = input.color(RED, 'Premium Zone', group=ZONES_GROUP)
+equilibriumZoneColorInput = input.color(GRAY, 'Equilibrium Zone', group=ZONES_GROUP)
+discountZoneColorInput = input.color(GREEN, 'Discount Zone', group=ZONES_GROUP)
+
+// ============================================================================
 // SUPERTREND CALCULATION FUNCTION
 // ============================================================================
 
@@ -51,7 +147,7 @@ f_supertrend(atr_period, multiplier) =>
     [trend, up, dn]
 
 // ============================================================================
-// M30 SUPERTREND (Multi-timeframe)
+// M30 SUPERTREND
 // ============================================================================
 
 [m30_trend, m30_up, m30_dn] = request.security(syminfo.tickerid, "30", f_supertrend(m30_atr_period, m30_multiplier))
@@ -60,7 +156,7 @@ m30_is_bullish = m30_trend == 1
 m30_is_bearish = m30_trend == -1
 
 // ============================================================================
-// M5 SUPERTREND (Multi-timeframe)
+// M5 SUPERTREND
 // ============================================================================
 
 [m5_trend, m5_up, m5_dn] = request.security(syminfo.tickerid, "5", f_supertrend(m5_atr_period, m5_multiplier))
@@ -71,7 +167,7 @@ m5_bullish_signal = m5_trend == 1 and m5_trend[1] == -1
 m5_bearish_signal = m5_trend == -1 and m5_trend[1] == 1
 
 // ============================================================================
-// MACD CALCULATION (Multi-timeframe)
+// MACD CALCULATION
 // ============================================================================
 
 [macd_line, macd_signal_line, macd_histogram] = request.security(syminfo.tickerid, "5", ta.macd(close, macd_fast, macd_slow, macd_signal))
@@ -124,36 +220,24 @@ sell_signal = m30_is_bearish and m5_bearish_signal and price_below_m5_dn and mac
 final_sell_signal = sell_signal
 
 // ============================================================================
-// PLOTTING - M30 SUPERTREND LINES
+// SUPERTREND PLOTTING
 // ============================================================================
 
 plot(show_m30_trend and m30_is_bullish ? m30_up : na, title="M30 Up Trend", color=color.new(color.green, 0), linewidth=3, style=plot.style_linebr)
 plot(show_m30_trend and m30_is_bearish ? m30_dn : na, title="M30 Down Trend", color=color.new(color.red, 0), linewidth=3, style=plot.style_linebr)
 
-// ============================================================================
-// PLOTTING - M5 SUPERTREND LINES
-// ============================================================================
-
 plot(show_m5_trend and m5_is_bullish ? m5_up : na, title="M5 Up Trend", color=color.new(color.lime, 50), linewidth=2, style=plot.style_linebr)
 plot(show_m5_trend and m5_is_bearish ? m5_dn : na, title="M5 Down Trend", color=color.new(color.orange, 50), linewidth=2, style=plot.style_linebr)
-
-// ============================================================================
-// PLOTTING - SIDEWAY BACKGROUND
-// ============================================================================
 
 bgcolor(is_sideway ? color.new(color.gray, 80) : na, title="Sideway Market")
 
 // ============================================================================
-// PLOTTING - BUY SIGNAL
+// SIGNAL PLOTTING
 // ============================================================================
 
 plotshape(show_signals and final_buy_signal ? low - (high - low) * 0.5 : na, title="BUY Signal", style=shape.labelup, location=location.belowbar, color=color.new(color.green, 0), text="BUY", textcolor=color.white, size=size.normal)
 
 plotshape(show_signals and final_buy_signal ? low : na, title="BUY Arrow", style=shape.triangleup, location=location.belowbar, color=color.new(color.green, 0), size=size.small)
-
-// ============================================================================
-// PLOTTING - SELL SIGNAL
-// ============================================================================
 
 plotshape(show_signals and final_sell_signal ? high + (high - low) * 0.5 : na, title="SELL Signal", style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0), text="SELL", textcolor=color.white, size=size.normal)
 
@@ -203,3 +287,8 @@ if show_status_table
 alertcondition(alert_buy and final_buy_signal, title="BUY Signal", message="🟢 BUY Signal - M30: BULLISH | M5: BULLISH | MACD: Positive")
 
 alertcondition(alert_sell and final_sell_signal, title="SELL Signal", message="🔴 SELL Signal - M30: BEARISH | M5: BEARISH | MACD: Negative")
+
+// SMC Alerts
+alertcondition(showStructureInput, title="SMC: Structure Active", message="Smart Money Concepts - Structure Display Active")
+alertcondition(showInternalOrderBlocksInput, title="SMC: Order Blocks Active", message="Smart Money Concepts - Order Blocks Display Active")
+alertcondition(showFairValueGapsInput, title="SMC: FVG Active", message="Smart Money Concepts - Fair Value Gaps Display Active")
